@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KVM Web Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background: #2c3e50;
+            color: white;
+        }
+        .sidebar .nav-link {
+            color: #ecf0f1;
+            border-radius: 0.5rem;
+            margin: 0.25rem 0;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            background: #34495e;
+            color: white;
+        }
+        .vm-card {
+            transition: transform 0.2s;
+        }
+        .vm-card:hover {
+            transform: translateY(-2px);
+        }
+        .status-running { color: #28a745; }
+        .status-stopped { color: #dc3545; }
+        .status-paused { color: #ffc107; }
+        .main-content {
+            background: #f8f9fa;
+            min-height: 100vh;
+        }
+        .stats-card {
+            border-left: 4px solid #007bff;
+        }
+        .vm-actions {
+            gap: 0.5rem;
+        }
+        .os-card {
+            transition: transform 0.2s;
+        }
+        .os-card:hover {
+            transform: translateY(-2px);
+        }
+        .iso-table img {
+            width: 24px;
+            height: 24px;
+        }
+        .download-progress {
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <div class="col-md-2 sidebar p-3">
+                <h4 class="mb-4">
+                    <i class="fas fa-server"></i> KVM Platform
+                </h4>
+                <nav class="nav flex-column">
+                    <a class="nav-link active" href="#" data-page="dashboard">
+                        <i class="fas fa-tachometer-alt"></i> Дашборд
+                    </a>
+                    <a class="nav-link" href="#" data-page="vms">
+                        <i class="fas fa-desktop"></i> Виртуальные машины
+                    </a>
+                    <a class="nav-link" href="#" data-page="create-vm">
+                        <i class="fas fa-plus"></i> Создать ВМ
+                    </a>
+                    <a class="nav-link" href="#" data-page="images">
+                        <i class="fas fa-compact-disc"></i> ISO образы
+                    </a>
+                    <a class="nav-link" href="#" data-page="networks">
+                        <i class="fas fa-network-wired"></i> Сети
+                    </a>
+                    <a class="nav-link" href="#" data-page="settings">
+                        <i class="fas fa-cog"></i> Настройки
+                    </a>
+                </nav>
+            </div>
+
+            <!-- Main Content -->
+            <div class="col-md-10 main-content p-4">
+                <!-- Dashboard Page -->
+                <div id="dashboard-page" class="page active">
+                    <h2 class="mb-4">Дашборд</h2>
+                    
+                    <!-- Host Stats -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card stats-card">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-microchip"></i> Процессор
+                                    </h5>
+                                    <h3 id="cpu-usage">0%</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card stats-card">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-memory"></i> Память
+                                    </h5>
+                                    <h3 id="memory-usage">0%</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card stats-card">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-hdd"></i> Диск
+                                    </h5>
+                                    <h3 id="disk-usage">0%</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card stats-card">
+                                <div class="card-body">
+                                    <h5 class="card-title">
+                                        <i class="fas fa-desktop"></i> ВМ всего
+                                    </h5>
+                                    <h3 id="total-vms">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent VMs -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-desktop"></i> Активные виртуальные машины</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="active-vms-list" class="row">
+                                <!-- Будет заполнено JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VMs Page -->
+                <div id="vms-page" class="page" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2>Виртуальные машины</h2>
+                        <button class="btn btn-primary" onclick="showCreateVMModal()">
+                            <i class="fas fa-plus"></i> Создать ВМ
+                        </button>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Имя</th>
+                                            <th>Состояние</th>
+                                            <th>Память</th>
+                                            <th>vCPUs</th>
+                                            <th>Действия</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="vms-table">
+                                        <!-- Будет заполнено JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Create VM Page -->
+                <div id="create-vm-page" class="page" style="display: none;">
+                    <h2 class="mb-4">Создать виртуальную машину</h2>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <form id="create-vm-form">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="vm-name" class="form-label">Имя ВМ</label>
+                                            <input type="text" class="form-control" id="vm-name" required>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="vm-memory" class="form-label">Память (МБ)</label>
+                                            <input type="number" class="form-control" id="vm-memory" value="1024" min="512">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="vm-vcpus" class="form-label">vCPUs</label>
+                                            <input type="number" class="form-control" id="vm-vcpus" value="1" min="1" max="16">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="vm-disk-size" class="form-label">Размер диска (ГБ)</label>
+                                            <input type="number" class="form-control" id="vm-disk-size" value="20" min="5">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="vm-iso" class="form-label">ISO образ</label>
+                                            <select class="form-select" id="vm-iso">
+                                                <option value="">Без ISO (пустая ВМ)</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="vm-network" class="form-label">Сеть</label>
+                                            <select class="form-select" id="vm-network">
+                                                <option value="default">Default</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-plus"></i> Создать ВМ
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ISO Images Page -->
+                <div id="images-page" class="page" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2>ISO образы</h2>
+                        <div>
+                            <button class="btn btn-outline-primary me-2" onclick="kvmPlatform.scanISOs()">
+                                <i class="fas fa-search"></i> Сканировать
+                            </button>
+                            <button class="btn btn-primary" onclick="kvmPlatform.showDownloadModal()">
+                                <i class="fas fa-download"></i> Скачать ISO
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Available OS Catalog -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5><i class="fas fa-catalog"></i> Доступные для скачивания</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="os-catalog-list" class="row">
+                                <!-- Будет заполнено JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Downloaded ISOs -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="fas fa-compact-disc"></i> Скачанные ISO образы</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Имя файла</th>
+                                            <th>Размер</th>
+                                            <th>Дата изменения</th>
+                                            <th>Действия</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="downloaded-isos-table">
+                                        <!-- Будет заполнено JavaScript -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="networks-page" class="page" style="display: none;">
+                    <h2>Сети</h2>
+                    <p>Увы, системы не зависимы, доступ и обмен сетью между ними не доступен</p>
+                </div>
+
+                <div id="settings-page" class="page" style="display: none;">
+                    <h2>Настройки</h2>
+                    <p>Функционал в разработке...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Download ISO Modal -->
+    <div class="modal fade" id="downloadModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Скачать ISO образ</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="download-iso-form">
+                        <div class="mb-3">
+                            <label for="download-url" class="form-label">URL для скачивания</label>
+                            <input type="url" class="form-control" id="download-url" required 
+                                   placeholder="https://example.com/image.iso">
+                        </div>
+                        <div class="mb-3">
+                            <label for="download-filename" class="form-label">Имя файла (опционально)</label>
+                            <input type="text" class="form-control" id="download-filename" 
+                                   placeholder="image.iso">
+                        </div>
+                        <div id="download-progress" style="display: none;">
+                            <div class="mb-2">
+                                <small class="text-muted">Загрузка...</small>
+                            </div>
+                            <div class="progress">
+                                <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="submit" form="download-iso-form" class="btn btn-primary">
+                        <i class="fas fa-download"></i> Скачать
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- VM Console Modal -->
+    <div class="modal fade" id="consoleModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Консоль ВМ: <span id="console-vm-name"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <iframe id="console-frame" width="100%" height="600" frameborder="0"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
